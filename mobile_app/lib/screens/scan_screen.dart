@@ -69,17 +69,16 @@ class _ScanScreenState extends State<ScanScreen> {
       ),
       body: Column(
         children: [
-          // 1. ส่วนกล้อง (ถ้ายังไม่มีข้อมูล ให้โชว์กล้อง)
+          // 1. ส่วนกล้อง
           if (scannedProduct == null)
             Expanded(
-              flex: 1, // พื้นที่กล้อง
+              flex: 1,
               child: Stack(
                 children: [
                   MobileScanner(
                     controller: cameraController,
                     onDetect: _onDetect,
                   ),
-                  // กรอบเล็งตรงกลาง
                   Center(
                     child: Container(
                       width: 250,
@@ -98,9 +97,9 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
             ),
 
-          // 2. ส่วนแสดงป้ายราคา (Price Tag)
+          // 2. ส่วนแสดงป้ายราคา
           Expanded(
-            flex: scannedProduct == null ? 0 : 2, // ถ้ามีของ ให้ขยายเต็มจอ
+            flex: scannedProduct == null ? 0 : 2,
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -112,7 +111,7 @@ class _ScanScreenState extends State<ScanScreen> {
                     ),
 
                   if (scannedProduct != null)
-                    _buildPriceTag(scannedProduct!), // เรียก Widget ป้ายราคา
+                    _buildPriceTag(scannedProduct!),
 
                   const SizedBox(height: 20),
                   if (scannedProduct != null)
@@ -138,15 +137,16 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  // 🏷️ WIDGET ป้ายราคา (แก้ไขตัวแปรให้ตรงกับ OneLake แล้ว)
+  // 🏷️ WIDGET ป้ายราคา (ปรับให้ตรงกับ Model ใหม่)
   Widget _buildPriceTag(Product item) {
-    // 1. ราคาขายจริง (UnitPrice)
-    final parts = item.unitPrice.toStringAsFixed(2).split('.');
-    final bigPrice = parts[0];
-    final decimal = parts[1];
+    // ราคาทั่วไป (ไม่สมาชิก)
+    final normalParts = item.cashNotMember.toStringAsFixed(2).split('.');
+    final bigPrice = normalParts[0];
+    final decimal = normalParts[1];
 
-    // 2. ราคาสมาชิก (ใช้ค่าจริงจาก DB เลย ไม่ต้องคำนวณเองแล้ว!)
-    final memberParts = item.memberPrice.toStringAsFixed(2).split('.');
+    // ราคาสมาชิก
+    final memberParts = item.cashMember.toStringAsFixed(2).split('.');
+    
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -162,13 +162,12 @@ class _ScanScreenState extends State<ScanScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // ✅ แก้จุดที่ 1: item.id -> item.sku
               Text(
-                'SKU: ${item.sku} [A]', 
+                'รหัส: ${item.segment1}',
                 style: GoogleFonts.sarabun(fontWeight: FontWeight.bold),
               ),
               Text(
-                'ONE LAKE', // เปลี่ยนชื่อแบรนด์หน่อย
+                'ONE LAKE',
                 style: GoogleFonts.sarabun(
                   color: Colors.red.shade800,
                   fontWeight: FontWeight.bold,
@@ -178,9 +177,8 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
           const SizedBox(height: 5),
           
-          // ✅ แก้จุดที่ 2: item.description -> item.productName
           Text(
-            item.productName, 
+            item.description,
             style: GoogleFonts.sarabun(fontSize: 16, color: Colors.black87),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -236,7 +234,7 @@ class _ScanScreenState extends State<ScanScreen> {
                             ),
                           ),
                           Text(
-                            '.$memberParts[1]',
+                            '.${memberParts[1]}',
                             style: GoogleFonts.sarabun(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -266,7 +264,7 @@ class _ScanScreenState extends State<ScanScreen> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              'ราคาปกติ',
+                              'ราคาทั่วไป',
                               style: GoogleFonts.sarabun(
                                 color: Colors.black54,
                                 fontSize: 10,
@@ -274,9 +272,8 @@ class _ScanScreenState extends State<ScanScreen> {
                               ),
                             ),
                           ),
-                          // ✅ แก้จุดที่ 3: item.uom -> item.sku (หรือลบทิ้ง)
                           Text(
-                            item.sku, 
+                            item.primaryUomCode,
                             style: GoogleFonts.sarabun(
                               fontSize: 10,
                               color: Colors.grey,
@@ -312,14 +309,14 @@ class _ScanScreenState extends State<ScanScreen> {
                       ),
                       const SizedBox(height: 10),
                       
-                      // ✅ แก้จุดที่ 4: item.crossRef -> item.barcode
+                      // บาร์โค้ด
                       Container(
                         height: 50,
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: item.barcode.isNotEmpty
+                        child: item.crossReference.isNotEmpty
                             ? Image.network(
-                                'https://barcode.tec-it.com/barcode.ashx?data=${item.barcode}&code=Code128&translate-esc=on',
+                                'https://barcode.tec-it.com/barcode.ashx?data=${item.crossReference}&code=Code128&translate-esc=on',
                                 fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) =>
                                     const Center(
@@ -329,10 +326,9 @@ class _ScanScreenState extends State<ScanScreen> {
                             : const Center(child: Text("ไม่มีบาร์โค้ด")),
                       ),
 
-                      // ตัวเลขบาร์โค้ดด้านล่าง
-                      // ✅ แก้จุดที่ 5: item.crossRef -> item.barcode
+                      // ตัวเลขบาร์โค้ด
                       Text(
-                        item.barcode, 
+                        item.crossReference,
                         style: GoogleFonts.sarabun(
                           fontSize: 12,
                           letterSpacing: 2,

@@ -1,8 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import pyodbc
-import os                       # <--- 1. เพิ่มตัวนี้
-from dotenv import load_dotenv  # <--- 2. เพิ่มตัวนี้
+import os                       
+from dotenv import load_dotenv  
 
 # 3. สั่งให้โหลดค่าจากไฟล์ .env เข้ามาในระบบ
 load_dotenv()
@@ -10,9 +10,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
-# ส่วนตั้งค่า (เปลี่ยนมาดึงจาก os.getenv แทนการพิมพ์ตรงๆ)
-# ==========================================
 server = os.getenv('SERVER')
 database = os.getenv('DATABASE')
 client_id = os.getenv('CLIENT_ID')
@@ -44,7 +41,7 @@ def get_products():
         cursor = conn.cursor()
         
         # 2. Query ข้อมูล (ผมเอา TOP 5 ออก เพื่อให้โชว์สินค้าทั้งหมด)
-        cursor.execute("SELECT * FROM dbo.products")
+        cursor.execute("SELECT * FROM dbo.Products_Price2")
         
         # 3. แปลงข้อมูลจาก Database ให้เป็น JSON (เพื่อให้ Flutter อ่านออก)
         columns = [column[0] for column in cursor.description] # ดึงชื่อหัวตาราง

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
-import '../services/api_service.dart'; // ตรวจสอบว่าไฟล์นี้มีอยู่จริงตามข้อ 2
+import '../services/api_service.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -10,7 +10,7 @@ class ProductListScreen extends StatefulWidget {
 }
 
 class _ProductListScreenState extends State<ProductListScreen> {
-  final ApiService apiService = ApiService(); // ถ้ายังแดง ให้เช็คไฟล์ api_service.dart
+  final ApiService apiService = ApiService();
   late Future<List<Product>> _productsFuture;
 
   @override
@@ -29,7 +29,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('สต็อกสินค้า OneLake'), // แก้ชื่อ Title หน่อย
+        title: const Text('สต็อกสินค้า OneLake'),
         backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
       ),
@@ -56,18 +56,45 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 return Card(
                   margin: const EdgeInsets.all(8),
                   child: ListTile(
-                    // 1. แก้ id เป็น sku
+                    // แสดง Index
                     leading: CircleAvatar(
-                      child: Text(item.sku.length > 3 ? item.sku.substring(0, 3) : item.sku, 
-                      style: const TextStyle(fontSize: 12)), 
-                    ), 
-                    // 2. แก้ description เป็น productName
-                    title: Text(item.productName), 
-                    // 3. แก้ uom เป็น barcode (หรือข้อมูลอื่นที่มี)
-                    subtitle: Text('Barcode: ${item.barcode}'), 
-                    trailing: Text(
-                      '฿${item.unitPrice.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                      child: Text(
+                        item.index.length > 3 ? item.index.substring(0, 3) : item.index,
+                        style: const TextStyle(fontSize: 12)
+                      ),
+                    ),
+                    // แสดง Description
+                    title: Text(item.description),
+                    // แสดง SEGMENT1 และ CROSS_REFERENCE
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('รหัส: ${item.segment1}'),
+                        Text('Cross Ref: ${item.crossReference}'),
+                        Text('หน่วย: ${item.primaryUomCode}'),
+                      ],
+                    ),
+                    // แสดงราคาสมาชิกและไม่สมาชิก
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'สมาชิก: ฿${item.cashMember.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'ทั่วไป: ฿${item.cashNotMember.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );

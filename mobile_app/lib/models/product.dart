@@ -1,31 +1,41 @@
 class Product {
-  final String barcode;
-  final String sku;
-  final String productName;
-  final double unitPrice;    // ราคาขายจริง
-  final double memberPrice;  // ราคาสำหรับสมาชิก (มีมาให้แล้ว!)
-  final double normalPrice;  // ราคาปกติ (มีมาให้แล้ว!)
+  final String index;
+  final String crossReference;
+  final String segment1;
+  final String description;
+  final String primaryUomCode;
+  final double cashNotMember;  // เงินสดรับเอง_ไม่สมาชิก
+  final double cashMember;      // เงินสดรับเอง_สมาชิก_
+  final DateTime maxDate;       // Max
 
   Product({
-    required this.barcode,
-    required this.sku,
-    required this.productName,
-    required this.unitPrice,
-    required this.memberPrice,
-    required this.normalPrice,
+    required this.index,
+    required this.crossReference,
+    required this.segment1,
+    required this.description,
+    required this.primaryUomCode,
+    required this.cashNotMember,
+    required this.cashMember,
+    required this.maxDate,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      // แปลงข้อมูลจาก JSON (ตามรูป image_534d88.png)
-      barcode: json['Barcode']?.toString() ?? '', 
-      sku: json['SKU']?.toString() ?? '',
-      productName: json['ProductName']?.toString() ?? '',
+      // แปลงข้อมูลจาก JSON ให้ตรงกับชื่อคอลัมน์ใน Database
+      index: json['Index']?.toString() ?? '',
+      crossReference: json['CROSS_REFERENCE']?.toString() ?? '',
+      segment1: json['SEGMENT1']?.toString() ?? '',
+      description: json['DESCRIPTION']?.toString() ?? '',
+      primaryUomCode: json['PRIMARY_UOM_CODE']?.toString() ?? '',
       
-      // แปลงตัวเลขราคา (ถ้าเป็น null ให้เป็น 0.0)
-      unitPrice: double.tryParse(json['UnitPrice'].toString()) ?? 0.0,
-      memberPrice: double.tryParse(json['MemberPrice'].toString()) ?? 0.0,
-      normalPrice: double.tryParse(json['NormalPrice'].toString()) ?? 0.0,
+      // แปลงตัวเลขราคา
+      cashNotMember: double.tryParse(json['เงินสดรับเอง_ไม่สมาชิก']?.toString() ?? '0') ?? 0.0,
+      cashMember: double.tryParse(json['เงินสดรับเอง_สมาชิก_']?.toString() ?? '0') ?? 0.0,
+      
+      // แปลงวันที่
+      maxDate: json['Max'] != null 
+          ? DateTime.parse(json['Max'].toString()) 
+          : DateTime.now(),
     );
   }
 }
