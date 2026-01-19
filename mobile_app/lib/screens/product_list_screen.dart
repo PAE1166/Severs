@@ -56,16 +56,15 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 return Card(
                   margin: const EdgeInsets.all(8),
                   child: ListTile(
-                    // แสดง Index
                     leading: CircleAvatar(
                       child: Text(
-                        item.index.length > 3 ? item.index.substring(0, 3) : item.index,
-                        style: const TextStyle(fontSize: 12)
+                        item.index.length > 3
+                            ? item.index.substring(0, 3)
+                            : item.index,
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
-                    // แสดง Description
                     title: Text(item.description),
-                    // แสดง SEGMENT1 และ CROSS_REFERENCE
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -74,7 +73,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         Text('หน่วย: ${item.primaryUomCode}'),
                       ],
                     ),
-                    // แสดงราคาสมาชิกและไม่สมาชิก
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.end,

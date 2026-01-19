@@ -1,10 +1,9 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pyodbc
 import os                       
 from dotenv import load_dotenv  
 
-# 3. สั่งให้โหลดค่าจากไฟล์ .env เข้ามาในระบบ
 load_dotenv()
 
 app = Flask(__name__)
@@ -16,7 +15,6 @@ client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 tenant_id = os.getenv('TENANT_ID')
 
-# Connection String (ใช้ตัวแปรเหมือนเดิมได้เลย)
 conn_str = (
     f"DRIVER={{ODBC Driver 18 for SQL Server}};"
     f"SERVER={server},1433;" 
@@ -28,40 +26,45 @@ conn_str = (
     f"TrustServerCertificate=no;"
 )
 
-# ... (ส่วนที่เหลือของโค้ดเหมือนเดิมครับ) ...
 
-# ==========================================
-# สร้าง API (ประตูให้ Flutter เข้ามาดึง)
-# ==========================================
 @app.route('/api/products', methods=['GET'])
+
 def get_products():
+    conn = None
     try:
-        # 1. เชื่อมต่อฐานข้อมูล
         conn = pyodbc.connect(conn_str)
         cursor = conn.cursor()
         
-        # 2. Query ข้อมูล (ผมเอา TOP 5 ออก เพื่อให้โชว์สินค้าทั้งหมด)
-        cursor.execute("SELECT * FROM dbo.Products_Price2")
+        barcode = request.args.get('barcode')
+        sku = request.args.get('sku')
+
+        if barcode:
+            sql_query = "SELECT * FROM [dbo].[Products_Price2] WHERE CROSS_REFERENCE = ?"
+            cursor.execute(sql_query, barcode)
+            
+        elif sku:
+            sql_query = "SELECT * FROM [dbo].[Products_Price2] WHERE SEGMENT1 = ?"
+            cursor.execute(sql_query, sku)
+            
+        else:
+            sql_query = "SELECT TOP 50 * FROM [dbo].[Products_Price2]"
+            cursor.execute(sql_query)
         
-        # 3. แปลงข้อมูลจาก Database ให้เป็น JSON (เพื่อให้ Flutter อ่านออก)
-        columns = [column[0] for column in cursor.description] # ดึงชื่อหัวตาราง
+        columns = [column[0] for column in cursor.description]
         results = []
         for row in cursor.fetchall():
-            # จับคู่ ชื่อคอลัมน์: ข้อมูล (เช่น 'ProductName': 'หลอดไฟ')
             results.append(dict(zip(columns, row)))
             
-        conn.close()
-        
-        # 4. ส่งกลับไปให้ Flutter
         return jsonify(results)
 
     except Exception as e:
-        print("Error:", e) # ปริ้นท์ error ดูในคอม
+        print("Error:", e)
         return jsonify({'error': str(e)}), 500
+        
+    finally:
+        if conn:
+            conn.close()
 
-# ==========================================
-# สั่งรัน Server
-# ==========================================
+
 if __name__ == '__main__':
-    # รันที่ port 5000
     app.run(host='0.0.0.0', port=5000, debug=True)

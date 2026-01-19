@@ -4,9 +4,9 @@ class Product {
   final String segment1;
   final String description;
   final String primaryUomCode;
-  final double cashNotMember;  // เงินสดรับเอง_ไม่สมาชิก
-  final double cashMember;      // เงินสดรับเอง_สมาชิก_
-  final DateTime maxDate;       // Max
+  final double cashNotMember;
+  final double cashMember;
+  final String maxDate;
 
   Product({
     required this.index,
@@ -20,22 +20,72 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    
+    
+    String formatDateToThai(dynamic rawValue) {
+      if (rawValue == null) {
+        return '';
+      }
+
+      String dateStr = rawValue.toString();
+      
+      
+      DateTime? parsed = DateTime.tryParse(dateStr);
+
+    
+      if (parsed == null) {
+        try {
+          
+          List<String> parts = dateStr.split(' ');
+          
+          
+          if (parts.length >= 4) {
+            int day = int.parse(parts[1]); 
+            String monthStr = parts[2];    
+            int year = int.parse(parts[3]); 
+            
+           
+            const months = {
+              'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+              'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+            };
+            int month = months[monthStr] ?? 1;
+
+            parsed = DateTime(year, month, day);
+          }
+        } catch (e) {
+          
+          parsed = null;
+        }
+      }
+
+      if (parsed == null) {
+        
+        return dateStr; 
+      }
+
+      final day = parsed.day.toString().padLeft(2, '0');
+      final month = parsed.month.toString().padLeft(2, '0');
+      final year = parsed.year + 543; 
+
+      return "$day/$month/$year";
+    }
+
     return Product(
-      // แปลงข้อมูลจาก JSON ให้ตรงกับชื่อคอลัมน์ใน Database
       index: json['Index']?.toString() ?? '',
       crossReference: json['CROSS_REFERENCE']?.toString() ?? '',
       segment1: json['SEGMENT1']?.toString() ?? '',
       description: json['DESCRIPTION']?.toString() ?? '',
       primaryUomCode: json['PRIMARY_UOM_CODE']?.toString() ?? '',
-      
-      // แปลงตัวเลขราคา
-      cashNotMember: double.tryParse(json['เงินสดรับเอง_ไม่สมาชิก']?.toString() ?? '0') ?? 0.0,
-      cashMember: double.tryParse(json['เงินสดรับเอง_สมาชิก_']?.toString() ?? '0') ?? 0.0,
-      
-      // แปลงวันที่
-      maxDate: json['Max'] != null 
-          ? DateTime.parse(json['Max'].toString()) 
-          : DateTime.now(),
+
+      cashNotMember:
+          double.tryParse(json['เงินสดรับเอง_ไม่สมาชิก_']?.toString() ?? '0') ??
+              0.0,
+      cashMember:
+          double.tryParse(json['เงินสดรับเอง_สมาชิก_']?.toString() ?? '0') ??
+              0.0,
+
+      maxDate: formatDateToThai(json['Maxราคาณ__วันที่']),
     );
   }
 }

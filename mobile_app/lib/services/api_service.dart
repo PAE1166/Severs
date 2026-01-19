@@ -3,10 +3,8 @@ import 'package:http/http.dart' as http;
 import '../models/product.dart';
 
 class ApiService {
-  // เช็ค IP ให้ตรงกับเครื่องคอมฯ นะครับ (10.0.2.2 สำหรับ Emulator, หรือ 192.168... สำหรับเครื่องจริง)
-  static const String baseUrl = 'http://172.20.10.11:5000/api/products';
+  static const String baseUrl = 'http://192.168.37.136:5000/api/products';
 
-  // 1. ฟังก์ชันดึงทั้งหมด
   Future<List<Product>> getProducts() async {
     try {
       final response = await http.get(Uri.parse(baseUrl));
@@ -17,42 +15,52 @@ class ApiService {
         throw Exception('Failed to load products');
       }
     } catch (e) {
-      throw Exception('Error: $e');
+      throw Exception('Error connection: $e');
     }
   }
 
-  // ---------------------------------------------------------
-  // 2. ฟังก์ชันค้นหาสินค้าจากบาร์โค้ด (CROSS_REFERENCE)
-  // ---------------------------------------------------------
   Future<Product?> getProductByBarcode(String barcodeToFind) async {
     try {
-      // ดึงสินค้ามาทั้งหมดก่อน
-      List<Product> allProducts = await getProducts();
+      final String requestUrl = '$baseUrl?barcode=$barcodeToFind';
 
-      // กรองหาตัวที่ CROSS_REFERENCE ตรงกับที่สแกน
-      try {
-        return allProducts.firstWhere((p) => p.crossReference == barcodeToFind);
-      } catch (e) {
-        return null; // ถ้าหาไม่เจอ
+      final response = await http.get(Uri.parse(requestUrl));
+
+      if (response.statusCode == 200) {
+        List<dynamic> body = jsonDecode(response.body);
+
+        if (body.isNotEmpty) {
+          return Product.fromJson(body[0]);
+        } else {
+          return null;
+        }
+      } else {
+        throw Exception('Failed to search product');
       }
     } catch (e) {
+      print("Error finding barcode: $e");
       return null;
     }
   }
 
-  // ---------------------------------------------------------
-  // 3. ฟังก์ชันค้นหาสินค้าจากรหัสสินค้า (SEGMENT1)
-  // ---------------------------------------------------------
-  Future<Product?> getProductByCode(String code) async {
+  Future<Product?> getProductByCode(String codeToFind) async {
     try {
-      List<Product> allProducts = await getProducts();
+      final String requestUrl = '$baseUrl?sku=$codeToFind';
 
-      try {
-        return allProducts.firstWhere((p) => p.segment1 == code);
-      } catch (e) {
-        return null;
+      final response = await http.get(Uri.parse(requestUrl));
+
+      if (response.statusCode == 200) {
+        List<dynamic> body = jsonDecode(response.body);
+
+        if (body.isNotEmpty) {
+          return Product.fromJson(body[0]);
+        } else {
+          return null;
+        }
+      } else {
+        throw Exception('Failed to search product');
       }
     } catch (e) {
+      print("Error finding sku: $e");
       return null;
     }
   }
