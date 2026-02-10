@@ -857,12 +857,12 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.red),
+          const Icon(Icons.error_outline, color: ui.Color.fromARGB(255, 190, 187, 187)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               errorMessage!,
-              style: GoogleFonts.kanit(color: Colors.red),
+              style: GoogleFonts.kanit(color: const ui.Color.fromARGB(255, 0, 0, 0)),
             ),
           ),
         ],
@@ -942,7 +942,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                         child: Text(
                           'ราคาสมาชิก',
                           style: GoogleFonts.sarabun(
-                            color: Colors.red.shade800,
+                            color: const ui.Color.fromARGB(255, 5, 5, 5),
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -958,7 +958,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                             style: GoogleFonts.sarabun(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
-                              color: Colors.red.shade800,
+                              color: const ui.Color.fromARGB(255, 0, 0, 0),
                               height: 1,
                             ),
                           ),
@@ -967,7 +967,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                             style: GoogleFonts.sarabun(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.red.shade800,
+                              color: const ui.Color.fromARGB(255, 0, 0, 0),
                             ),
                           ),
                         ],
@@ -990,13 +990,13 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
+                              color: const ui.Color.fromARGB(255, 239, 239, 239),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               'ราคาทั่วไป',
                               style: GoogleFonts.sarabun(
-                                color: Colors.black54,
+                                color: const ui.Color.fromARGB(255, 0, 0, 0),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1006,7 +1006,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                             item.primaryUomCode,
                             style: GoogleFonts.sarabun(
                               fontSize: 10,
-                              color: Colors.grey,
+                              color: const ui.Color.fromARGB(255, 0, 0, 0),
                             ),
                           ),
                         ],
@@ -1031,7 +1031,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                             style: GoogleFonts.sarabun(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
-                              color: Colors.black,
+                              color: const ui.Color.fromARGB(255, 0, 0, 0),
                             ),
                           ),
                         ],
@@ -1069,7 +1069,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
             'ราคา ณ วันที่: $dateStr',
             style: GoogleFonts.sarabun(
               fontSize: 10,
-              color: Colors.grey.shade600,
+              color: const ui.Color.fromARGB(255, 0, 0, 0),
               fontStyle: FontStyle.italic,
             ),
           ),
