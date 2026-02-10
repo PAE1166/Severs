@@ -1,8 +1,37 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/product.dart';
+import 'package:another_brother/printer_info.dart' as brother;
+import 'package:another_brother/label_info.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+// [เพิ่ม] Import ApiService และ Product จากไฟล์จริง
 import '../services/api_service.dart';
+import '../models/product.dart';
+
+// ==========================================
+// [ลบ Mock Models & Services]
+// ==========================================
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: ScanScreen(),
+  ));
+}
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -11,25 +40,19 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen>
-    with SingleTickerProviderStateMixin {
-  // ปรับปรุง Controller
+class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateMixin {
+  
+  final GlobalKey _printKey = GlobalKey();
+
   final MobileScannerController cameraController = MobileScannerController(
-    // 1. กำหนดรูปแบบเป็น all เพื่อรองรับทุกแบบ (QR, Code128, EAN, etc.)
     formats: const [BarcodeFormat.all],
-
-    // 2. [สำคัญ] เพิ่มความละเอียดกล้อง เพื่อให้อ่านบาร์โค้ดที่ละเอียดหรือยาวได้ดีขึ้น
-    // การใช้ความละเอียดสูงช่วยแก้ปัญหาอ่านบาร์โค้ดไม่ติด หรืออ่านยาก
-    cameraResolution: const Size(1280, 720),
-
-    // ลด timeout ลงเล็กน้อยเพื่อให้สแกนต่อเนื่องได้ไวขึ้น (ปรับตามความเหมาะสม)
     detectionTimeoutMs: 500,
     autoStart: false,
-
-    // ตั้งค่า Torch (ไฟแฟลช) เริ่มต้นเป็นปิด
     torchEnabled: false,
+    facing: CameraFacing.back,
   );
 
+  // [แก้ไข] ใช้ ApiService จริง
   final ApiService apiService = ApiService();
 
   late AnimationController _animationController;
@@ -39,17 +62,12 @@ class _ScanScreenState extends State<ScanScreen>
   bool isLoading = false;
   bool isScanning = false;
   String? errorMessage;
-
-  // ตัวแปรสำหรับสถานะไฟแฟลช
   bool _isTorchOn = false;
-
   bool _showBarcodeOnly = false;
 
   String? selectedPrinter;
   final List<String> printers = [
-    'Printer A (Office)',
-    'Printer B (Warehouse)',
-    'Printer C (Lobby)',
+    'Brother QL-820NWB (Bluetooth)',
   ];
 
   final TextEditingController _searchController = TextEditingController();
@@ -66,6 +84,20 @@ class _ScanScreenState extends State<ScanScreen>
       begin: 0.2,
       end: 1.0,
     ).animate(_animationController);
+
+    _requestPermissions();
+  }
+
+  Future<void> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      await [
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+        Permission.camera,
+      ].request();
+    }
   }
 
   @override
@@ -80,7 +112,6 @@ class _ScanScreenState extends State<ScanScreen>
     setState(() {
       isScanning = true;
       errorMessage = null;
-      // รีเซ็ตสถานะไฟแฟลชเมื่อเริ่มสแกนใหม่
       _isTorchOn = false;
     });
     cameraController.start();
@@ -103,7 +134,6 @@ class _ScanScreenState extends State<ScanScreen>
     if (barcodes.isNotEmpty && !isLoading) {
       final String? code = barcodes.first.rawValue;
       if (code != null) {
-        // เพิ่มการ Clean ข้อมูลเล็กน้อยเผื่อมีช่องว่างหัวท้าย
         String cleanCode = code.trim();
         if (cleanCode.isNotEmpty) {
           _stopScan();
@@ -113,6 +143,7 @@ class _ScanScreenState extends State<ScanScreen>
     }
   }
 
+  // [แก้ไข] อัปเดตฟังก์ชันให้เรียก API จริง
   Future<void> _fetchProduct(String code) async {
     setState(() {
       isLoading = true;
@@ -121,7 +152,14 @@ class _ScanScreenState extends State<ScanScreen>
     });
 
     try {
-      final product = await apiService.getProductByBarcode(code);
+      // ลองค้นหาจากบาร์โค้ดก่อน
+      Product? product = await apiService.getProductByBarcode(code);
+      
+      // ถ้าไม่พบ ลองค้นหาจากรหัส SKU
+      if (product == null) {
+        product = await apiService.getProductByCode(code);
+      }
+
       setState(() {
         scannedProduct = product;
         if (product == null) {
@@ -129,7 +167,7 @@ class _ScanScreenState extends State<ScanScreen>
         }
       });
     } catch (e) {
-      setState(() => errorMessage = "เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      setState(() => errorMessage = "เกิดข้อผิดพลาดในการเชื่อมต่อ: $e");
     } finally {
       setState(() => isLoading = false);
     }
@@ -167,18 +205,16 @@ class _ScanScreenState extends State<ScanScreen>
     );
   }
 
-  // ฟังก์ชันสำหรับแสดง Dialog ตั้งค่าการพิมพ์ (ขนาดกระดาษ, จำนวน)
   void _showPrintSettingsDialog() {
-    // ค่าเริ่มต้น
-    double selectedWidth = 58.0; // ขนาดมาตรฐาน
+    double selectedWidth = 62.0; 
     int quantity = 1;
-    // รายการขนาดกระดาษที่รองรับ (35-80 มม.)
-    final List<double> paperSizes = [35, 40, 50, 58, 80];
+    brother.Orientation selectedOrientation = brother.Orientation.PORTRAIT;
+    
+    final List<double> paperSizes = [29, 38, 50, 54, 62]; 
 
     showDialog(
       context: context,
       builder: (context) {
-        // ใช้ StatefulBuilder เพื่อให้ Dialog อัปเดตค่าได้เมื่อกดปุ่ม +/- หรือเปลี่ยน Dropdown
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
@@ -192,13 +228,11 @@ class _ScanScreenState extends State<ScanScreen>
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ส่วนเลือกขนาดกระดาษ
                   Row(
                     children: [
                       Icon(Icons.receipt_long, color: Colors.blue[700]),
                       const SizedBox(width: 10),
-                      Text('ขนาดกระดาษ:',
-                          style: GoogleFonts.kanit(fontSize: 16)),
+                      Text('ขนาดกระดาษ:', style: GoogleFonts.kanit(fontSize: 16)),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -229,9 +263,52 @@ class _ScanScreenState extends State<ScanScreen>
                       ),
                     ),
                   ),
+                  
                   const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Icon(Icons.rotate_right, color: Colors.blue[700]),
+                      const SizedBox(width: 10),
+                      Text('แนวการพิมพ์:', style: GoogleFonts.kanit(fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<brother.Orientation>(
+                        value: selectedOrientation,
+                        isExpanded: true,
+                        items: [
+                          DropdownMenuItem(
+                            value: brother.Orientation.PORTRAIT,
+                            child: Text(
+                              'แนวตั้ง (Portrait)', 
+                              style: GoogleFonts.kanit(fontSize: 16)
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: brother.Orientation.LANDSCAPE,
+                            child: Text(
+                              'แนวนอน (Landscape)', 
+                              style: GoogleFonts.kanit(fontSize: 16)
+                            ),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setStateDialog(() => selectedOrientation = val);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
 
-                  // ส่วนเลือกจำนวน
+                  const SizedBox(height: 20),
                   Row(
                     children: [
                       Icon(Icons.copy, color: Colors.blue[700]),
@@ -243,40 +320,24 @@ class _ScanScreenState extends State<ScanScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.remove),
-                          onPressed: () {
-                            if (quantity > 1) {
-                              setStateDialog(() => quantity--);
-                            }
-                          },
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: () {
+                          if (quantity > 1) {
+                            setStateDialog(() => quantity--);
+                          }
+                        },
                       ),
-                      Container(
-                        width: 60,
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$quantity',
-                          style: GoogleFonts.kanit(
-                              fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
+                      Text(
+                        '$quantity',
+                        style: GoogleFonts.kanit(
+                            fontSize: 22, fontWeight: FontWeight.bold),
                       ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.add, color: Colors.blue),
-                          onPressed: () {
-                            setStateDialog(() => quantity++);
-                          },
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
+                        onPressed: () {
+                          setStateDialog(() => quantity++);
+                        },
                       ),
                     ],
                   ),
@@ -285,26 +346,15 @@ class _ScanScreenState extends State<ScanScreen>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'ยกเลิก',
-                    style: GoogleFonts.kanit(color: Colors.grey),
-                  ),
+                  child: Text('ยกเลิก', style: GoogleFonts.kanit(color: Colors.grey)),
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    // สั่งพิมพ์จริงโดยส่งค่าที่เลือกไปด้วย
-                    _executePrint(selectedWidth, quantity);
+                    _executePrint(selectedWidth, quantity, selectedOrientation);
                   },
                   icon: const Icon(Icons.print),
                   label: Text('พิมพ์', style: GoogleFonts.kanit()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[800],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
                 ),
               ],
             );
@@ -314,31 +364,105 @@ class _ScanScreenState extends State<ScanScreen>
     );
   }
 
-  // ฟังก์ชันสั่งพิมพ์จริง (Mockup)
-  void _executePrint(double width, int qty) {
-    String modeText = _showBarcodeOnly ? "แบบบาร์โค้ด" : "แบบป้ายราคา";
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'กำลังพิมพ์ $modeText\nไปที่: $selectedPrinter\nขนาด: ${width.toInt()} มม. | จำนวน: $qty ใบ',
-          style: GoogleFonts.kanit(),
+  Future<Uint8List?> _capturePngFromWidget() async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 50));
+      RenderRepaintBoundary boundary = _printKey.currentContext!
+          .findRenderObject() as RenderRepaintBoundary;
+      
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0); 
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint("Error capturing image: $e");
+      return null;
+    }
+  }
+
+  Future<ui.Image> _bytesToImage(Uint8List bytes) async {
+    final Completer<ui.Image> completer = Completer();
+    ui.decodeImageFromList(bytes, (ui.Image img) {
+      completer.complete(img);
+    });
+    return completer.future;
+  }
+
+  Future<void> _executePrint(double width, int qty, brother.Orientation orientation) async {
+    if (scannedProduct == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(),
+              SizedBox(height: 15),
+              Text("กำลังค้นหาเครื่องพิมพ์และส่งข้อมูล...")
+            ],
+          ),
         ),
-        backgroundColor: Colors.green[700],
-        duration: const Duration(seconds: 3),
       ),
     );
+
+    try {
+      Uint8List? imageBytes = await _capturePngFromWidget();
+
+      if (imageBytes != null) {
+        
+        var printer = brother.Printer();
+        var printInfo = brother.PrinterInfo();
+
+        printInfo.printerModel = brother.Model.QL_820NWB;
+        printInfo.port = brother.Port.BLUETOOTH;
+        printInfo.orientation = orientation;
+        printInfo.numberOfCopies = 1; 
+        printInfo.labelNameIndex = QL700.ordinalFromID(QL700.W62.getId());
+        printInfo.isAutoCut = true;
+        printInfo.printMode = brother.PrintMode.FIT_TO_PAGE;
+
+        printer.setPrinterInfo(printInfo);
+
+        List<brother.BluetoothPrinter> printers = await printer.getBluetoothPrinters([brother.Model.QL_820NWB.getName()]);
+
+        if (printers.isEmpty) {
+           throw Exception("ไม่พบเครื่องพิมพ์ QL-820NWB (Bluetooth)");
+        }
+
+        printInfo.macAddress = printers.first.macAddress;
+        printer.setPrinterInfo(printInfo);
+
+        ui.Image img = await _bytesToImage(imageBytes);
+
+        for (int i = 0; i < qty; i++) {
+           await printer.printImage(img);
+        }
+        
+        Navigator.pop(context); 
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('ส่งคำสั่งพิมพ์เรียบร้อย (${width.toInt()}mm x $qty)'), 
+             backgroundColor: Colors.green
+           ),
+        );
+      } else {
+        throw Exception("ไม่สามารถจับภาพหน้าจอได้");
+      }
+    } catch (e) {
+      Navigator.pop(context); 
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _printLabel() {
     if (scannedProduct == null) return;
-    if (selectedPrinter == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาเลือกเครื่องพิมพ์ก่อน')),
-      );
-      return;
-    }
-
-    // เรียกหน้าต่างตั้งค่าก่อนพิมพ์แทนการพิมพ์ทันที
     _showPrintSettingsDialog();
   }
 
@@ -357,11 +481,8 @@ class _ScanScreenState extends State<ScanScreen>
             MobileScanner(
               controller: cameraController,
               onDetect: _onDetect,
-              // ลบ scanWindow ออกเพื่อให้สแกนได้เต็มหน้าจอ ไม่จำกัดแค่ในกรอบ
-              // scanWindow: scanWindow,
+              fit: BoxFit.cover, 
             ),
-
-            // กรอบ UI (Visual Guide) - ยังคงแสดงเพื่อให้ผู้ใช้รู้ตำแหน่งโฟกัสกลางจอ
             Center(
               child: Container(
                 width: 280,
@@ -369,17 +490,9 @@ class _ScanScreenState extends State<ScanScreen>
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.redAccent, width: 3),
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 10,
-                    ),
-                  ],
                 ),
               ),
             ),
-
-            // เส้นเลเซอร์สแกน
             Center(
               child: FadeTransition(
                 opacity: _opacityAnimation,
@@ -399,8 +512,6 @@ class _ScanScreenState extends State<ScanScreen>
                 ),
               ),
             ),
-
-            // ปุ่มปิด
             Positioned(
               top: 50,
               left: 20,
@@ -412,8 +523,6 @@ class _ScanScreenState extends State<ScanScreen>
                 ),
               ),
             ),
-
-            // เพิ่มปุ่มเปิด/ปิดไฟแฟลช
             Positioned(
               top: 50,
               right: 20,
@@ -428,23 +537,11 @@ class _ScanScreenState extends State<ScanScreen>
                 ),
               ),
             ),
-
-            const Positioned(
-              bottom: 80,
-              left: 0,
-              right: 0,
-              child: Text(
-                "จัดบาร์โค้ดให้อยู่ในกรอบ",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
           ],
         ),
       );
     }
 
-    // ส่วนแสดงผลหลัก
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -499,14 +596,6 @@ class _ScanScreenState extends State<ScanScreen>
                           style: GoogleFonts.kanit(color: Colors.grey),
                         ),
                         isExpanded: true,
-                        icon: const Icon(
-                          Icons.arrow_drop_down_circle_outlined,
-                          color: Colors.grey,
-                        ),
-                        style: GoogleFonts.kanit(
-                          color: Colors.black87,
-                          fontSize: 16,
-                        ),
                         items: printers.map((String printer) {
                           return DropdownMenuItem<String>(
                             value: printer,
@@ -538,9 +627,15 @@ class _ScanScreenState extends State<ScanScreen>
                     else if (errorMessage != null)
                       _buildErrorView()
                     else if (scannedProduct != null)
-                      _showBarcodeOnly
-                          ? _buildBarcodeOnlyTag(scannedProduct!)
-                          : _buildPriceTag(scannedProduct!)
+                      RepaintBoundary(
+                        key: _printKey,
+                        child: Container(
+                          color: Colors.white, 
+                          child: _showBarcodeOnly
+                              ? _buildBarcodeOnlyTag(scannedProduct!)
+                              : _buildPriceTag(scannedProduct!),
+                        ),
+                      )
                     else
                       _buildPlaceholderFrame(),
                   ],
@@ -583,7 +678,6 @@ class _ScanScreenState extends State<ScanScreen>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[700],
                       foregroundColor: Colors.white,
-                      elevation: 4,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -591,7 +685,6 @@ class _ScanScreenState extends State<ScanScreen>
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -612,7 +705,7 @@ class _ScanScreenState extends State<ScanScreen>
                   ),
                 ),
                 const SizedBox(height: 12),
-
+                
                 if (scannedProduct != null) ...[
                   Row(
                     children: [
@@ -627,15 +720,8 @@ class _ScanScreenState extends State<ScanScreen>
                             foregroundColor: !_showBarcodeOnly
                                 ? Colors.blue[800]
                                 : Colors.grey[600],
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: !_showBarcodeOnly
-                                    ? Colors.blue.withOpacity(0.5)
-                                    : Colors.transparent,
-                              ),
                             ),
                           ),
                           child: Text(
@@ -658,15 +744,8 @@ class _ScanScreenState extends State<ScanScreen>
                             foregroundColor: _showBarcodeOnly
                                 ? Colors.blue[800]
                                 : Colors.grey[600],
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: _showBarcodeOnly
-                                    ? Colors.blue.withOpacity(0.5)
-                                    : Colors.transparent,
-                              ),
                             ),
                           ),
                           child: Text(
@@ -680,54 +759,50 @@ class _ScanScreenState extends State<ScanScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: scannedProduct != null
+                              ? _showPrintSettingsDialog
+                              : null,
+                          icon: const Icon(Icons.settings_outlined, size: 20),
+                          label: Text(
+                            'ตั้งค่ากระดาษ',
+                            style: GoogleFonts.kanit(fontSize: 14),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: Colors.grey[300]!),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: scannedProduct != null ? _printLabel : null,
+                          icon: const Icon(Icons.print, size: 20),
+                          label: Text(
+                            'พิมพ์สินค้า',
+                            style: GoogleFonts.kanit(fontSize: 14),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        // ปุ่มตั้งค่ากระดาษเดิม สามารถกดเพื่อเปิดเมนูตั้งค่าได้เหมือนกัน
-                        onPressed: scannedProduct != null
-                            ? _showPrintSettingsDialog
-                            : null,
-                        icon: const Icon(Icons.settings_outlined, size: 20),
-                        label: Text(
-                          'ตั้งค่ากระดาษ',
-                          style: GoogleFonts.kanit(fontSize: 14),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[700],
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(color: Colors.grey[300]!),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: scannedProduct != null ? _printLabel : null,
-                        icon: const Icon(Icons.print, size: 20),
-                        label: Text(
-                          'พิมพ์สินค้า',
-                          style: GoogleFonts.kanit(fontSize: 14),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green[600],
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          disabledBackgroundColor: Colors.grey[200],
-                          disabledForegroundColor: Colors.grey[400],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -798,18 +873,12 @@ class _ScanScreenState extends State<ScanScreen>
   Widget _buildPriceTag(Product item) {
     final double notMemberPrice = item.cashNotMember;
     final double memberPrice = item.cashMember;
-
-    // แยกส่วนทศนิยม
     final normalParts = notMemberPrice.toStringAsFixed(2).split('.');
-    // ใช้ฟังก์ชัน _addCommas ใส่ลูกน้ำให้ตัวเลขหลัก (เช่น 1000 -> 1,000)
     final bigPrice = _addCommas(normalParts[0]);
     final decimal = normalParts[1];
-
-    // ทำเช่นเดียวกันกับราคาสมาชิก
     final memberParts = memberPrice.toStringAsFixed(2).split('.');
     final memberBigPrice = _addCommas(memberParts[0]);
     final memberDecimal = memberParts[1];
-
     final dateStr = item.maxDate;
 
     return Container(
@@ -847,7 +916,6 @@ class _ScanScreenState extends State<ScanScreen>
             overflow: TextOverflow.ellipsis,
           ),
           const Divider(height: 30),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -886,7 +954,7 @@ class _ScanScreenState extends State<ScanScreen>
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            memberBigPrice, // แสดงราคาแบบมีคอมมา
+                            memberBigPrice,
                             style: GoogleFonts.sarabun(
                               fontSize: 26,
                               fontWeight: FontWeight.w800,
@@ -950,7 +1018,7 @@ class _ScanScreenState extends State<ScanScreen>
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            bigPrice, // แสดงราคาแบบมีคอมมา
+                            bigPrice,
                             style: GoogleFonts.sarabun(
                               fontSize: 32,
                               fontWeight: FontWeight.w900,
@@ -971,8 +1039,7 @@ class _ScanScreenState extends State<ScanScreen>
                       const SizedBox(height: 8),
                       SizedBox(
                         height: 40,
-                        child:
-                            (item.crossReference.isNotEmpty)
+                        child: (item.crossReference.isNotEmpty)
                             ? Image.network(
                                 'https://barcode.tec-it.com/barcode.ashx?data=${item.crossReference}&code=Code128&translate-esc=on',
                                 fit: BoxFit.contain,
@@ -1035,13 +1102,11 @@ class _ScanScreenState extends State<ScanScreen>
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 30),
-
           Container(
             height: 120,
             width: double.infinity,
             alignment: Alignment.center,
-            child:
-                (item.crossReference.isNotEmpty)
+            child: (item.crossReference.isNotEmpty)
                 ? Image.network(
                     'https://barcode.tec-it.com/barcode.ashx?data=${item.crossReference}&code=Code128&translate-esc=on',
                     fit: BoxFit.contain,
@@ -1054,7 +1119,6 @@ class _ScanScreenState extends State<ScanScreen>
                 : const Center(child: Text("-")),
           ),
           const SizedBox(height: 10),
-
           Text(
             item.crossReference,
             style: GoogleFonts.sarabun(

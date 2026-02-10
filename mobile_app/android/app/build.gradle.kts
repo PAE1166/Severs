@@ -7,7 +7,10 @@ plugins {
 
 android {
     namespace = "com.example.mobile_app"
-    compileSdk = flutter.compileSdkVersion
+    
+    // [แก้ไข 1] เปลี่ยนจาก flutter.compileSdkVersion เป็น 36
+    compileSdk = 36
+    
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -24,8 +27,13 @@ android {
         applicationId = "com.example.mobile_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        
+        // [แก้ไข 3] เปลี่ยน minSdk จาก 21 เป็น 23 ตามที่ library mobile_scanner ต้องการ
+        minSdk = 23
+        
+        // [แก้ไข 2] เปลี่ยนจาก flutter.targetSdkVersion เป็น 36 (เพื่อให้เข้าคู่กัน)
+        targetSdk = 36
+        
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

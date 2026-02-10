@@ -47,5 +47,13 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>ขออนุญาตใช้กล้องเพื่อสแกนบาร์โค้ดสินค้า</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Need bluetooth to connect to the printer</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Need bluetooth to connect to the printer</string>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+    <string>com.brother.ptcbp</string>
+	</array>
 </dict>
 </plist>

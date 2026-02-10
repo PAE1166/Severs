@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../models/product.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.37.136:5000/api/products';
+  static const String baseUrl = 'http://app.wanawat.co.th/api/products';
 
   Future<List<Product>> getProducts() async {
     try {
