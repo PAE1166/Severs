@@ -12,13 +12,9 @@ import 'package:another_brother/printer_info.dart' as brother;
 import 'package:another_brother/label_info.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-// [เพิ่ม] Import ApiService และ Product จากไฟล์จริง
+// [Import ApiService และ Product จากไฟล์จริงของคุณ]
 import '../services/api_service.dart';
 import '../models/product.dart';
-
-// ==========================================
-// [ลบ Mock Models & Services]
-// ==========================================
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +48,6 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     facing: CameraFacing.back,
   );
 
-  // [แก้ไข] ใช้ ApiService จริง
   final ApiService apiService = ApiService();
 
   late AnimationController _animationController;
@@ -70,6 +65,19 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     'Brother QL-820NWB (Bluetooth)',
   ];
 
+  // ใช้เลือกระดับความสูง (1-5) แทนการเลือกขนาดกระดาษ
+  // 1 = สั้นที่สุด (Compact), 5 = ยาวที่สุด (Loose)
+  int _currentHeightLevel = 1;
+  
+  // รายการระดับความสูง
+  final List<Map<String, dynamic>> heightOptions = [
+    {'level': 1, 'label': '62mm (ความสูงระดับ 1 - สั้นที่สุด)'},
+    {'level': 2, 'label': '62mm (ความสูงระดับ 2 - สั้น)'},
+    {'level': 3, 'label': '62mm (ความสูงระดับ 3 - ปานกลาง)'},
+    {'level': 4, 'label': '62mm (ความสูงระดับ 4 - ยาว)'},
+    {'level': 5, 'label': '62mm (ความสูงระดับ 5 - ยาวมาก)'},
+  ];
+  
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -143,7 +151,6 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     }
   }
 
-  // [แก้ไข] อัปเดตฟังก์ชันให้เรียก API จริง
   Future<void> _fetchProduct(String code) async {
     setState(() {
       isLoading = true;
@@ -152,10 +159,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     });
 
     try {
-      // ลองค้นหาจากบาร์โค้ดก่อน
       Product? product = await apiService.getProductByBarcode(code);
-      
-      // ถ้าไม่พบ ลองค้นหาจากรหัส SKU
       if (product == null) {
         product = await apiService.getProductByCode(code);
       }
@@ -205,12 +209,13 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     );
   }
 
+  // [ปรับปรุง] กลับไปใช้ Dialog แบบเรียบง่าย
   void _showPrintSettingsDialog() {
-    double selectedWidth = 62.0; 
     int quantity = 1;
     brother.Orientation selectedOrientation = brother.Orientation.PORTRAIT;
     
-    final List<double> paperSizes = [29, 38, 50, 54, 62]; 
+    // ใช้ตัวแปร Local
+    int tempHeightLevel = _currentHeightLevel;
 
     showDialog(
       context: context,
@@ -218,130 +223,119 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: Text(
-                'ตั้งค่าการพิมพ์',
-                style: GoogleFonts.kanit(fontWeight: FontWeight.bold),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long, color: Colors.blue[700]),
-                      const SizedBox(width: 10),
-                      Text('ขนาดกระดาษ:', style: GoogleFonts.kanit(fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text('ตั้งค่าการพิมพ์', style: GoogleFonts.kanit(fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // --- ส่วนเลือกขนาดความสูง (บนกระดาษ 62mm) ---
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long, color: Colors.blue[700]),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text('ขนาดป้าย (62mm):', style: GoogleFonts.kanit(fontSize: 16)),
+                        ),
+                      ],
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<double>(
-                        value: selectedWidth,
-                        isExpanded: true,
-                        items: paperSizes.map((size) {
-                          return DropdownMenuItem(
-                            value: size,
-                            child: Text(
-                              '${size.toInt()} มม.',
-                              style: GoogleFonts.kanit(fontSize: 16),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: tempHeightLevel,
+                          isExpanded: true,
+                          items: heightOptions.map((option) {
+                            return DropdownMenuItem<int>(
+                              value: option['level'] as int,
+                              child: Text(
+                                option['label'] as String,
+                                style: GoogleFonts.kanit(fontSize: 14),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setStateDialog(() => tempHeightLevel = val);
+                              this.setState(() => _currentHeightLevel = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+              
+                    const SizedBox(height: 15),
+                    // --- ส่วนเลือกแนวตั้ง/นอน ---
+                    Row(
+                      children: [
+                        Icon(Icons.rotate_right, color: Colors.blue[700]),
+                        const SizedBox(width: 10),
+                        Text('แนวการพิมพ์:', style: GoogleFonts.kanit(fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<brother.Orientation>(
+                          value: selectedOrientation,
+                          isExpanded: true,
+                          items: [
+                            DropdownMenuItem(
+                              value: brother.Orientation.PORTRAIT,
+                              child: Text('แนวตั้ง (Portrait)', style: GoogleFonts.kanit(fontSize: 16)),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setStateDialog(() => selectedWidth = val);
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Icon(Icons.rotate_right, color: Colors.blue[700]),
-                      const SizedBox(width: 10),
-                      Text('แนวการพิมพ์:', style: GoogleFonts.kanit(fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<brother.Orientation>(
-                        value: selectedOrientation,
-                        isExpanded: true,
-                        items: [
-                          DropdownMenuItem(
-                            value: brother.Orientation.PORTRAIT,
-                            child: Text(
-                              'แนวตั้ง (Portrait)', 
-                              style: GoogleFonts.kanit(fontSize: 16)
+                            DropdownMenuItem(
+                              value: brother.Orientation.LANDSCAPE,
+                              child: Text('แนวนอน (Landscape)', style: GoogleFonts.kanit(fontSize: 16)),
                             ),
-                          ),
-                          DropdownMenuItem(
-                            value: brother.Orientation.LANDSCAPE,
-                            child: Text(
-                              'แนวนอน (Landscape)', 
-                              style: GoogleFonts.kanit(fontSize: 16)
-                            ),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setStateDialog(() => selectedOrientation = val);
-                          }
-                        },
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setStateDialog(() => selectedOrientation = val);
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Icon(Icons.copy, color: Colors.blue[700]),
-                      const SizedBox(width: 10),
-                      Text('จำนวน:', style: GoogleFonts.kanit(fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        onPressed: () {
-                          if (quantity > 1) {
-                            setStateDialog(() => quantity--);
-                          }
-                        },
-                      ),
-                      Text(
-                        '$quantity',
-                        style: GoogleFonts.kanit(
-                            fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                        onPressed: () {
-                          setStateDialog(() => quantity++);
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+              
+                    // --- ส่วนเลือกจำนวน ---
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Icon(Icons.copy, color: Colors.blue[700]),
+                        const SizedBox(width: 10),
+                        Text('จำนวน:', style: GoogleFonts.kanit(fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: () {
+                            if (quantity > 1) setStateDialog(() => quantity--);
+                          },
+                        ),
+                        Text('$quantity', style: GoogleFonts.kanit(fontSize: 22, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
+                          onPressed: () => setStateDialog(() => quantity++),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -351,7 +345,8 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 ElevatedButton.icon(
                   onPressed: () {
                     Navigator.pop(context);
-                    _executePrint(selectedWidth, quantity, selectedOrientation);
+                    // กลับไปใช้ฟังก์ชันพิมพ์แบบมาตรฐาน
+                    _executePrint(quantity, selectedOrientation);
                   },
                   icon: const Icon(Icons.print),
                   label: Text('พิมพ์', style: GoogleFonts.kanit()),
@@ -366,7 +361,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
 
   Future<Uint8List?> _capturePngFromWidget() async {
     try {
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 200)); 
       RenderRepaintBoundary boundary = _printKey.currentContext!
           .findRenderObject() as RenderRepaintBoundary;
       
@@ -387,7 +382,11 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     return completer.future;
   }
 
-  Future<void> _executePrint(double width, int qty, brother.Orientation orientation) async {
+  // [ปรับปรุง] กลับมาใช้วิธีตั้งค่าแบบดั้งเดิมที่เคยทำงานได้
+  Future<void> _executePrint(
+    int qty, 
+    brother.Orientation orientation, 
+  ) async {
     if (scannedProduct == null) return;
 
     showDialog(
@@ -402,7 +401,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
             children: const [
               CircularProgressIndicator(),
               SizedBox(height: 15),
-              Text("กำลังค้นหาเครื่องพิมพ์และส่งข้อมูล...")
+              Text("กำลังส่งข้อมูลไปยังเครื่องพิมพ์...")
             ],
           ),
         ),
@@ -421,16 +420,22 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
         printInfo.port = brother.Port.BLUETOOTH;
         printInfo.orientation = orientation;
         printInfo.numberOfCopies = 1; 
+        
+        // [สำคัญ] ใช้วิธี ordinalFromID แบบเดิมที่เคยทำงานได้
+        // ไม่ต้องมี Logic เช็ค Red/Black หรือขนาดอื่นๆ บังคับ 62mm ไปเลย
         printInfo.labelNameIndex = QL700.ordinalFromID(QL700.W62.getId());
+        
         printInfo.isAutoCut = true;
         printInfo.printMode = brother.PrintMode.FIT_TO_PAGE;
+        printInfo.align = brother.Align.CENTER;
+        printInfo.valign = brother.VAlign.MIDDLE;
 
         printer.setPrinterInfo(printInfo);
 
         List<brother.BluetoothPrinter> printers = await printer.getBluetoothPrinters([brother.Model.QL_820NWB.getName()]);
 
         if (printers.isEmpty) {
-           throw Exception("ไม่พบเครื่องพิมพ์ QL-820NWB (Bluetooth)");
+           throw Exception("ไม่พบเครื่องพิมพ์ QL-820NWB (Bluetooth)\nกรุณาเปิดเครื่องและ Pair Bluetooth");
         }
 
         printInfo.macAddress = printers.first.macAddress;
@@ -439,14 +444,18 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
         ui.Image img = await _bytesToImage(imageBytes);
 
         for (int i = 0; i < qty; i++) {
-           await printer.printImage(img);
+           brother.PrinterStatus status = await printer.printImage(img);
+           
+           if (status.errorCode != brother.ErrorCode.ERROR_NONE) {
+             throw Exception("พิมพ์ไม่สำเร็จ (Error: ${status.errorCode})");
+           }
         }
         
         Navigator.pop(context); 
         
         ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(
-             content: Text('ส่งคำสั่งพิมพ์เรียบร้อย (${width.toInt()}mm x $qty)'), 
+             content: Text('พิมพ์สำเร็จ!'), 
              backgroundColor: Colors.green
            ),
         );
@@ -455,8 +464,18 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       }
     } catch (e) {
       Navigator.pop(context); 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('เกิดข้อผิดพลาด: $e'), backgroundColor: Colors.red),
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('เกิดข้อผิดพลาด', style: GoogleFonts.kanit(color: Colors.red, fontWeight: FontWeight.bold)),
+          content: Text(e.toString().replaceAll("Exception:", ""), style: GoogleFonts.kanit()),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("ตกลง"),
+            )
+          ],
+        ),
       );
     }
   }
@@ -474,6 +493,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     if (isScanning) {
+      // ... (Scanner code same as before)
       return Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
@@ -547,10 +567,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       appBar: AppBar(
         title: Text(
           'WG wanawat',
-          style: GoogleFonts.kanit(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: GoogleFonts.kanit(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
         backgroundColor: Colors.blue[800],
@@ -558,6 +575,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       ),
       body: Column(
         children: [
+          // ... (Printer Dropdown same as before)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
@@ -591,10 +609,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: selectedPrinter,
-                        hint: Text(
-                          "เลือกเครื่องพิมพ์",
-                          style: GoogleFonts.kanit(color: Colors.grey),
-                        ),
+                        hint: Text("เลือกเครื่องพิมพ์", style: GoogleFonts.kanit(color: Colors.grey)),
                         isExpanded: true,
                         items: printers.map((String printer) {
                           return DropdownMenuItem<String>(
@@ -627,14 +642,28 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     else if (errorMessage != null)
                       _buildErrorView()
                     else if (scannedProduct != null)
-                      RepaintBoundary(
-                        key: _printKey,
-                        child: Container(
-                          color: Colors.white, 
-                          child: _showBarcodeOnly
-                              ? _buildBarcodeOnlyTag(scannedProduct!)
-                              : _buildPriceTag(scannedProduct!),
-                        ),
+                      Column(
+                        children: [
+                          Text(
+                            // แสดงระดับความสูงที่เลือก
+                            "ขนาดป้าย: 62mm (ความสูงระดับ $_currentHeightLevel)",
+                            style: GoogleFonts.kanit(color: Colors.grey[600], fontSize: 12),
+                          ),
+                          const SizedBox(height: 10),
+                          
+                          RepaintBoundary(
+                            key: _printKey,
+                            child: Container(
+                              color: Colors.white,
+                              // บังคับความกว้างเป็น 62mm เสมอ (คูณ 5 เพื่อความละเอียด)
+                              width: 62.0 * 5.0,
+                              alignment: Alignment.topCenter, 
+                              child: _showBarcodeOnly
+                                  ? _buildBarcodeOnlyTag(scannedProduct!, _currentHeightLevel)
+                                  : _buildPriceTag(scannedProduct!, _currentHeightLevel),
+                            ),
+                          ),
+                        ],
                       )
                     else
                       _buildPlaceholderFrame(),
@@ -643,14 +672,13 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
               ),
             ),
           ),
-
+          
+          // ... (Bottom Buttons same as before)
           Container(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(30),
-              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
@@ -670,17 +698,12 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     icon: const Icon(Icons.qr_code_scanner),
                     label: Text(
                       'สแกนสินค้า',
-                      style: GoogleFonts.kanit(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: GoogleFonts.kanit(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[700],
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
@@ -691,16 +714,11 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                   child: OutlinedButton.icon(
                     onPressed: _showManualSearchDialog,
                     icon: const Icon(Icons.keyboard),
-                    label: Text(
-                      'ค้นหาสินค้าจากเลขรหัส',
-                      style: GoogleFonts.kanit(fontSize: 16),
-                    ),
+                    label: Text('ค้นหาสินค้าจากเลขรหัส', style: GoogleFonts.kanit(fontSize: 16)),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.grey[800],
                       side: BorderSide(color: Colors.grey[300]!),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
@@ -711,49 +729,25 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () =>
-                              setState(() => _showBarcodeOnly = false),
+                          onPressed: () => setState(() => _showBarcodeOnly = false),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: !_showBarcodeOnly
-                                ? Colors.blue[100]
-                                : Colors.grey[100],
-                            foregroundColor: !_showBarcodeOnly
-                                ? Colors.blue[800]
-                                : Colors.grey[600],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            backgroundColor: !_showBarcodeOnly ? Colors.blue[100] : Colors.grey[100],
+                            foregroundColor: !_showBarcodeOnly ? Colors.blue[800] : Colors.grey[600],
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text(
-                            'แบบป้ายราคา',
-                            style: GoogleFonts.kanit(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: Text('แบบป้ายราคา', style: GoogleFonts.kanit(fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () =>
-                              setState(() => _showBarcodeOnly = true),
+                          onPressed: () => setState(() => _showBarcodeOnly = true),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _showBarcodeOnly
-                                ? Colors.blue[100]
-                                : Colors.grey[100],
-                            foregroundColor: _showBarcodeOnly
-                                ? Colors.blue[800]
-                                : Colors.grey[600],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            backgroundColor: _showBarcodeOnly ? Colors.blue[100] : Colors.grey[100],
+                            foregroundColor: _showBarcodeOnly ? Colors.blue[800] : Colors.grey[600],
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text(
-                            'แบบบาร์โค้ด',
-                            style: GoogleFonts.kanit(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: Text('แบบบาร์โค้ด', style: GoogleFonts.kanit(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -763,21 +757,14 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: scannedProduct != null
-                              ? _showPrintSettingsDialog
-                              : null,
+                          onPressed: scannedProduct != null ? _showPrintSettingsDialog : null,
                           icon: const Icon(Icons.settings_outlined, size: 20),
-                          label: Text(
-                            'ตั้งค่ากระดาษ',
-                            style: GoogleFonts.kanit(fontSize: 14),
-                          ),
+                          label: Text('ตั้งค่ากระดาษ', style: GoogleFonts.kanit(fontSize: 14)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.grey[700],
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             side: BorderSide(color: Colors.grey[300]!),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
@@ -786,17 +773,12 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                         child: ElevatedButton.icon(
                           onPressed: scannedProduct != null ? _printLabel : null,
                           icon: const Icon(Icons.print, size: 20),
-                          label: Text(
-                            'พิมพ์สินค้า',
-                            style: GoogleFonts.kanit(fontSize: 14),
-                          ),
+                          label: Text('พิมพ์สินค้า', style: GoogleFonts.kanit(fontSize: 14)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green[600],
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
@@ -811,6 +793,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     );
   }
 
+  // ... (_buildPlaceholderFrame, _buildErrorView same)
   Widget _buildPlaceholderFrame() {
     return Container(
       width: double.infinity,
@@ -818,11 +801,7 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.shade300,
-          width: 2,
-          style: BorderStyle.solid,
-        ),
+        border: Border.all(color: Colors.grey.shade300, width: 2),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -831,17 +810,10 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
           const SizedBox(height: 16),
           Text(
             'รอข้อมูลสินค้า',
-            style: GoogleFonts.kanit(
-              fontSize: 20,
-              color: Colors.grey[400],
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.kanit(fontSize: 20, color: Colors.grey[400], fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          Text(
-            'กรุณาสแกนหรือค้นหาสินค้า',
-            style: GoogleFonts.kanit(color: Colors.grey[400]),
-          ),
+          Text('กรุณาสแกนหรือค้นหาสินค้า', style: GoogleFonts.kanit(color: Colors.grey[400])),
         ],
       ),
     );
@@ -860,17 +832,54 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
           const Icon(Icons.error_outline, color: ui.Color.fromARGB(255, 190, 187, 187)),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              errorMessage!,
-              style: GoogleFonts.kanit(color: const ui.Color.fromARGB(255, 0, 0, 0)),
-            ),
+            child: Text(errorMessage!, style: GoogleFonts.kanit(color: Colors.black)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPriceTag(Product item) {
+  // [ปรับปรุง] ใช้ layoutWidth ในการคำนวณ UI เหมือนเดิม
+  Widget _buildPriceTag(Product item, int heightLevel) {
+    
+    // ตั้งค่าตามระดับความสูง 1-5 (1=สั้นสุด, 5=ยาวสุด)
+    double paddingVal = 0;
+    double gapVal = 0;
+    double lineHeight = 1.0;
+
+    switch (heightLevel) {
+      case 1: // สั้นที่สุด
+        paddingVal = 1.0;
+        gapVal = 0;
+        lineHeight = 0.8;
+        break;
+      case 2: // สั้น
+        paddingVal = 4.0;
+        gapVal = 1.0;
+        lineHeight = 0.9;
+        break;
+      case 3: // ปานกลาง (มาตรฐาน)
+        paddingVal = 8.0;
+        gapVal = 2.0;
+        lineHeight = 1.0;
+        break;
+      case 4: // ยาว
+        paddingVal = 12.0;
+        gapVal = 4.0;
+        lineHeight = 1.1;
+        break;
+      case 5: // ยาวมาก
+        paddingVal = 16.0;
+        gapVal = 6.0;
+        lineHeight = 1.2;
+        break;
+      default:
+        paddingVal = 8.0;
+    }
+
+    // Scale Factor คงที่เพราะใช้ 62mm ตลอด
+    double scale = 1.0; 
+
     final double notMemberPrice = item.cashNotMember;
     final double memberPrice = item.cashMember;
     final normalParts = notMemberPrice.toStringAsFixed(2).split('.');
@@ -882,15 +891,17 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     final dateStr = item.maxDate;
 
     return Container(
+      width: 62.0 * 5.0, 
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(blurRadius: 15, color: Colors.black12)],
+        borderRadius: BorderRadius.circular(4), 
+        boxShadow: const [BoxShadow(blurRadius: 2, color: Colors.black12)], 
         border: Border.all(color: Colors.grey.shade300),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(paddingVal),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min, 
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -899,178 +910,194 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
                 'รหัส: ${item.segment1}',
                 style: GoogleFonts.sarabun(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: 14 * scale,
+                  height: lineHeight, 
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
+          SizedBox(height: gapVal * scale),
           Text(
             item.description,
             style: GoogleFonts.sarabun(
-              fontSize: 18,
+              fontSize: 18 * scale,
               color: Colors.black87,
               fontWeight: FontWeight.bold,
+              height: lineHeight,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const Divider(height: 30),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      right: BorderSide(color: Colors.grey.shade300),
+          Divider(height: (4 + gapVal) * scale, thickness: 0.5),
+          
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.only(right: 4 * scale), 
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: Colors.grey.shade300, width: 0.5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 4 * scale,
+                            vertical: 1 * scale,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: Text(
+                            'ราคาสมาชิก',
+                            style: GoogleFonts.sarabun(
+                              color: Colors.black,
+                              fontSize: 11 * scale,
+                              fontWeight: FontWeight.bold,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: gapVal * scale), 
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              memberBigPrice,
+                              style: GoogleFonts.sarabun(
+                                fontSize: 26 * scale,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black,
+                                height: 0.85, 
+                              ),
+                            ),
+                            Text(
+                              '.$memberDecimal',
+                              style: GoogleFonts.sarabun(
+                                fontSize: 14 * scale,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                ),
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.only(left: 4 * scale), 
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                         Row(
+                           mainAxisAlignment: MainAxisAlignment.end,
+                           children: [
+                             Text(
+                               item.primaryUomCode,
+                               style: GoogleFonts.sarabun(
+                                 fontSize: 10 * scale,
+                                 color: Colors.black,
+                                 height: 1.0,
+                               ),
+                             ),
+                             SizedBox(width: 2 * scale),
+                             Container(
+                               padding: EdgeInsets.symmetric(
+                                 horizontal: 4 * scale,
+                                 vertical: 1 * scale,
+                               ),
+                               decoration: BoxDecoration(
+                                 color: Colors.grey[200],
+                                 borderRadius: BorderRadius.circular(2),
+                               ),
+                               child: Text(
+                                 'ราคาทั่วไป',
+                                 style: GoogleFonts.sarabun(
+                                   color: Colors.black,
+                                   fontSize: 10 * scale,
+                                   fontWeight: FontWeight.bold,
+                                   height: 1.0,
+                                 ),
+                               ),
+                             ),
+                           ],
+                         ),
+                        SizedBox(height: gapVal * scale),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              bigPrice,
+                              style: GoogleFonts.sarabun(
+                                fontSize: 32 * scale,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                                height: 0.85, 
+                              ),
+                            ),
+                            Text(
+                              '.$decimal',
+                              style: GoogleFonts.sarabun(
+                                fontSize: 16 * scale,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(4),
+                        
+                        SizedBox(height: (2 + gapVal) * scale),
+                        
+                        // [ปรับปรุง] Barcode Image -> ใช้รหัส Oracle (segment1)
+                        SizedBox(
+                          height: 45 * scale, 
+                          child: (item.segment1.isNotEmpty) 
+                              ? Image.network(
+                                  'https://barcode.tec-it.com/barcode.ashx?data=${item.segment1}&code=Code128&translate-esc=on',
+                                  fit: BoxFit.fill, 
+                                  errorBuilder: (c, e, s) => const SizedBox(),
+                                )
+                              : const Center(child: Text("-")),
                         ),
-                        child: Text(
-                          'ราคาสมาชิก',
+                        
+                        // [ปรับปรุง] แสดงแค่รหัส 885 (crossReference) อันเดียว
+                        Text(
+                          item.crossReference,
+                          textAlign: TextAlign.right,
                           style: GoogleFonts.sarabun(
-                            color: const ui.Color.fromARGB(255, 5, 5, 5),
-                            fontSize: 11,
+                            fontSize: 10 * scale,
+                            letterSpacing: 1.0,
+                            height: 0.8,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            memberBigPrice,
-                            style: GoogleFonts.sarabun(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              color: const ui.Color.fromARGB(255, 0, 0, 0),
-                              height: 1,
-                            ),
-                          ),
-                          Text(
-                            '.$memberDecimal',
-                            style: GoogleFonts.sarabun(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: const ui.Color.fromARGB(255, 0, 0, 0),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const ui.Color.fromARGB(255, 239, 239, 239),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'ราคาทั่วไป',
-                              style: GoogleFonts.sarabun(
-                                color: const ui.Color.fromARGB(255, 0, 0, 0),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            item.primaryUomCode,
-                            style: GoogleFonts.sarabun(
-                              fontSize: 10,
-                              color: const ui.Color.fromARGB(255, 0, 0, 0),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            bigPrice,
-                            style: GoogleFonts.sarabun(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.black,
-                              height: 1,
-                            ),
-                          ),
-                          Text(
-                            '.$decimal',
-                            style: GoogleFonts.sarabun(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: const ui.Color.fromARGB(255, 0, 0, 0),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 40,
-                        child: (item.crossReference.isNotEmpty)
-                            ? Image.network(
-                                'https://barcode.tec-it.com/barcode.ashx?data=${item.crossReference}&code=Code128&translate-esc=on',
-                                fit: BoxFit.contain,
-                                errorBuilder: (c, e, s) => const Icon(
-                                  Icons.broken_image,
-                                  color: Colors.grey,
-                                ),
-                              )
-                            : const Center(child: Text("-")),
-                      ),
-                      Text(
-                        item.crossReference,
-                        style: GoogleFonts.sarabun(
-                          fontSize: 10,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 15),
-          const Divider(),
+          SizedBox(height: gapVal * scale),
+          const Divider(height: 2, thickness: 0.5), 
           Text(
             'ราคา ณ วันที่: $dateStr',
             style: GoogleFonts.sarabun(
-              fontSize: 10,
-              color: const ui.Color.fromARGB(255, 0, 0, 0),
+              fontSize: 10 * scale,
+              color: Colors.black,
               fontStyle: FontStyle.italic,
+              height: 1.0,
             ),
           ),
         ],
@@ -1078,53 +1105,98 @@ class _ScanScreenState extends State<ScanScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildBarcodeOnlyTag(Product item) {
+  Widget _buildBarcodeOnlyTag(Product item, int heightLevel) {
+    
+    // ตั้งค่าตามระดับความสูง 1-5
+    double paddingVal = 0;
+    double gapVal = 0;
+    double lineHeight = 1.0;
+
+    switch (heightLevel) {
+      case 1:
+        paddingVal = 4.0;
+        gapVal = 2.0;
+        lineHeight = 0.9;
+        break;
+      case 2:
+        paddingVal = 8.0;
+        gapVal = 4.0;
+        lineHeight = 1.0;
+        break;
+      case 3:
+        paddingVal = 12.0;
+        gapVal = 6.0;
+        lineHeight = 1.0;
+        break;
+      case 4:
+        paddingVal = 16.0;
+        gapVal = 8.0;
+        lineHeight = 1.1;
+        break;
+      case 5:
+        paddingVal = 20.0;
+        gapVal = 10.0;
+        lineHeight = 1.2;
+        break;
+      default:
+        paddingVal = 12.0;
+    }
+
+    double scale = 1.0;
+
     return Container(
+      width: 62.0 * 5.0, 
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(blurRadius: 15, color: Colors.black12)],
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: const [BoxShadow(blurRadius: 2, color: Colors.black12)],
         border: Border.all(color: Colors.grey.shade300),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      padding: EdgeInsets.symmetric(vertical: paddingVal * scale, horizontal: 8.0), 
       child: Column(
+        mainAxisSize: MainAxisSize.min, 
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             item.description,
             style: GoogleFonts.sarabun(
-              fontSize: 24,
+              fontSize: 24 * scale,
               color: Colors.black87,
               fontWeight: FontWeight.bold,
+              height: lineHeight, 
             ),
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 30),
+          SizedBox(height: gapVal * scale), 
+          
+          // [ปรับปรุง] Barcode Image -> ใช้รหัส Oracle (segment1)
           Container(
-            height: 120,
+            height: 90 * scale, 
             width: double.infinity,
             alignment: Alignment.center,
-            child: (item.crossReference.isNotEmpty)
+            child: (item.segment1.isNotEmpty)
                 ? Image.network(
-                    'https://barcode.tec-it.com/barcode.ashx?data=${item.crossReference}&code=Code128&translate-esc=on',
-                    fit: BoxFit.contain,
+                    'https://barcode.tec-it.com/barcode.ashx?data=${item.segment1}&code=Code128&translate-esc=on',
+                    fit: BoxFit.fill, 
                     errorBuilder: (c, e, s) => const Icon(
                       Icons.broken_image,
-                      size: 50,
                       color: Colors.grey,
                     ),
                   )
                 : const Center(child: Text("-")),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: gapVal * scale),
+          
+          // [ปรับปรุง] แสดงแค่รหัส 885 (crossReference)
           Text(
             item.crossReference,
             style: GoogleFonts.sarabun(
-              fontSize: 22,
+              fontSize: 22 * scale,
               fontWeight: FontWeight.bold,
-              letterSpacing: 3,
+              letterSpacing: 2,
+              height: 0.9,
             ),
           ),
         ],
